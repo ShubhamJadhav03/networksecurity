@@ -14,6 +14,7 @@ from networksecurity.utils.ml_utils.metric.classification_metric import get_clas
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import r2_score
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import (
     AdaBoostClassifier,
@@ -21,7 +22,20 @@ from sklearn.ensemble import (
     RandomForestClassifier,
 )
 import mlflow
-import mlflow.sklearn
+from urllib.parse import urlparse
+import dagshub
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
+
+# Initialize DagsHub repo
+dagshub.init(repo_owner='ShubhamJadhav03', repo_name='networksecurity', mlflow=True)
+
+# Set MLflow credentials from .env
+os.environ["MLFLOW_TRACKING_URI"] = os.getenv("MLFLOW_TRACKING_URI")
+os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("MLFLOW_TRACKING_USERNAME")
+os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD")
 
 
 class ModelTrainer:
@@ -32,31 +46,34 @@ class ModelTrainer:
         except Exception as e:
             raise NetworkSecurityException(e, sys)
         
-    def track_mlflow(self, best_model, classificationmetric, run_name="model_run"):
-        """
-        Logs metrics and model to MLflow (local tracking).
-        """
-        # Save MLflow experiments in ./mlruns
-        mlflow.set_tracking_uri("http://127.0.0.1:5000")
-
-
+    def track_mlflow(self, best_model, classificationmetric, run_name="experiment"):
+        mlflow.set_registry_uri(os.getenv("MLFLOW_TRACKING_URI"))
+        tracking_url_type_store = urlparse(mlflow.get_tracking_uri()).scheme
+        
         with mlflow.start_run(run_name=run_name):
-            mlflow.log_metric("f1_score", classificationmetric.f1_score)
-            mlflow.log_metric("precision", classificationmetric.precision_score)
-            mlflow.log_metric("recall_score", classificationmetric.recall_score)
+            f1_score = classificationmetric.f1_score
+            precision_score = classificationmetric.precision_score
+            recall_score = classificationmetric.recall_score
 
-            # Log model (no registry, just store locally)
-            mlflow.sklearn.log_model(best_model, "model")
+            # Log metrics
+            mlflow.log_metric("f1_score", f1_score)
+            mlflow.log_metric("precision", precision_score)
+            mlflow.log_metric("recall_score", recall_score)
+
+            # Log model
+            if tracking_url_type_store != "file":
+                mlflow.sklearn.log_model(best_model, "model", registered_model_name="BestModel")
+            else:
+                mlflow.sklearn.log_model(best_model, "model")
 
     def train_model(self, X_train, y_train, x_test, y_test):
         models = {
             "Random Forest": RandomForestClassifier(verbose=1),
             "Decision Tree": DecisionTreeClassifier(),
             "Gradient Boosting": GradientBoostingClassifier(verbose=1),
-            "Logistic Regression": LogisticRegression(verbose=1, max_iter=200),
+            "Logistic Regression": LogisticRegression(verbose=1),
             "AdaBoost": AdaBoostClassifier(),
         }
-
         params = {
             "Decision Tree": {
                 'criterion': ['gini', 'entropy', 'log_loss'],
@@ -65,13 +82,13 @@ class ModelTrainer:
                 'n_estimators': [8, 16, 32, 128, 256]
             },
             "Gradient Boosting": {
-                'learning_rate': [0.1, 0.01, 0.05, 0.001],
+                'learning_rate': [.1, .01, .05, .001],
                 'subsample': [0.6, 0.7, 0.75, 0.85, 0.9],
                 'n_estimators': [8, 16, 32, 64, 128, 256]
             },
             "Logistic Regression": {},
             "AdaBoost": {
-                'learning_rate': [0.1, 0.01, 0.001],
+                'learning_rate': [.1, .01, .001],
                 'n_estimators': [8, 16, 32, 64, 128, 256]
             }
         }
@@ -82,10 +99,10 @@ class ModelTrainer:
             models=models, param=params
         )
         
-        # Best model score
+        ## To get best model score from dict
         best_model_score = max(sorted(model_report.values()))
 
-        # Best model name
+        ## To get best model name from dict
         best_model_name = list(model_report.keys())[
             list(model_report.values()).index(best_model_score)
         ]
@@ -94,30 +111,23 @@ class ModelTrainer:
         # Train metrics
         y_train_pred = best_model.predict(X_train)
         classification_train_metric = get_classification_score(y_true=y_train, y_pred=y_train_pred)
-
-        # Track with MLflow (train)
         self.track_mlflow(best_model, classification_train_metric, run_name=f"{best_model_name}_train")
 
         # Test metrics
         y_test_pred = best_model.predict(x_test)
         classification_test_metric = get_classification_score(y_true=y_test, y_pred=y_test_pred)
-
-        # Track with MLflow (test)
         self.track_mlflow(best_model, classification_test_metric, run_name=f"{best_model_name}_test")
 
-        # Save the preprocessor + model
+        # Save final model
         preprocessor = load_object(file_path=self.data_transformation_artifact.transformed_object_file_path)
-            
         model_dir_path = os.path.dirname(self.model_trainer_config.trained_model_file_path)
         os.makedirs(model_dir_path, exist_ok=True)
 
-        network_model = NetworkModel(preprocessor=preprocessor, model=best_model)
-        save_object(self.model_trainer_config.trained_model_file_path, obj=network_model)
-        
-        # also save only the model
+        Network_Model = NetworkModel(preprocessor=preprocessor, model=best_model)
+        save_object(self.model_trainer_config.trained_model_file_path, obj=Network_Model)
         save_object("final_model/model.pkl", best_model)
-        
-        # Artifact
+
+        ## Model Trainer Artifact
         model_trainer_artifact = ModelTrainerArtifact(
             trained_model_file_path=self.model_trainer_config.trained_model_file_path,
             train_metric_artifact=classification_train_metric,
@@ -125,7 +135,7 @@ class ModelTrainer:
         )
         logging.info(f"Model trainer artifact: {model_trainer_artifact}")
         return model_trainer_artifact
-        
+
     def initiate_model_trainer(self) -> ModelTrainerArtifact:
         try:
             train_file_path = self.data_transformation_artifact.transformed_train_file_path
