@@ -1,0 +1,6 @@
+[ 2025-09-16 23:34:48,054 ] 1025 httpx - INFO - HTTP Request: GET https://dagshub.com/api/v1/user "HTTP/1.1 200 OK"
+[ 2025-09-16 23:34:48,140 ] 107 dagshub - INFO - Accessing as ShubhamJadhav03
+[ 2025-09-16 23:34:48,602 ] 1025 httpx - INFO - HTTP Request: GET https://dagshub.com/api/v1/repos/ShubhamJadhav03/networksecurity "HTTP/1.1 200 OK"
+[ 2025-09-16 23:34:48,963 ] 1025 httpx - INFO - HTTP Request: GET https://dagshub.com/api/v1/user "HTTP/1.1 200 OK"
+[ 2025-09-16 23:34:48,966 ] 107 dagshub - INFO - Initialized MLflow to track repo "ShubhamJadhav03/networksecurity"
+[ 2025-09-16 23:34:48,966 ] 107 dagshub - INFO - Repository ShubhamJadhav03/networksecurity initialized!
