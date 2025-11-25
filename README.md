@@ -20,6 +20,9 @@ A machine learning–powered phishing website detection system with a full end-t
 - 🗄️ MongoDB integration for storing predictions/data  
 
 ---
+
+<img width="1024" height="559" alt="image" src="https://github.com/user-attachments/assets/108d5cfb-89eb-4ca6-acbc-13a33803d45f" />
+
 <img width="1602" height="757" alt="image" src="https://github.com/user-attachments/assets/7c3c3e15-3df6-4442-a7c0-ccede3fd273d" />
 
 <img width="1606" height="756" alt="image" src="https://github.com/user-attachments/assets/274a9f19-98c8-4a6f-a677-4768cf82167f" />
